@@ -83,80 +83,112 @@ The processed version used here contains **54002 rows and 8 columns**. The core 
 
 By aggregating EIA-860 and EIA-923 data to the state–year level and merging them with the outage dataset, we obtain a combined dataset that describes both **how outages occur** and **how each state generates electricity**. This integrated view is the basis for the analyses and models presented in the rest of the project.
 
-## Data Cleaning and Feature Engineering
+## Data Cleaning and Exploratory Data Analysis
 
-### “outage” dataframe
+### Data Cleaning
 
-#### Data cleaning
+#### “outage” dataframe
 
-To study outages at the state–year level, I first cleaned the main **outage** dataset.
+##### Data cleaning
 
-- I renamed several columns so that their names are shorter and easier to read.
-- I kept columns that are useful for my question: year, state, climate region, outage duration, cause, and a few economic and demographic variables.
-- Columns that describe very detailed outage mechanics, sales information, or variables not directly related to grid resilience were dropped.
-- Rows with missing `state` or `year` were removed to keep the dataset consistent.
-- Columns that should be numeric (for example `duration`) were converted from strings to numbers.
-- Text fields such as `cause_detail` were lightly cleaned (trimming spaces, handling obvious typos) so that they can be used later in EDA if needed.
+To analyze outages at the state–year level, I first cleaned the `outage` dataframe.
 
-After these steps, the **outage** dataframe contains one row per major outage event with the key variables needed for my analysis (time, location, cause, climate region, duration, and state-level context).
+I started by simplifying the columns:
 
-#### Feature engineering
+- Renamed some variables so that the names are shorter and easier to read.
+- Kept columns that are relevant for my question, such as  
+  `year`, `state`, `climate_region`, `anomaly_level`, `climate_cat`,  
+  `cause_cat`, `cause_detail`, `duration`, `pc_realgsp_state`,  
+  `pi_util_of_usa`, `population`, `pop_pct_urban`, `pop_pct_uc`,  
+  `popden_urban`, `popden_uc`, `popden_rural`, `area_pct_urban`,  
+  `area_pct_uc`, and the state-level summary columns.
+- Dropped many other columns about detailed pricing, customer counts, or
+  very specific outage mechanics that are not used later in the analysis.
+- Removed rows where `state` or `year` is missing to keep the dataset consistent.
+- Converted columns that should be numeric (for example `duration`) from
+  strings to numeric types.
+- Lightly cleaned the `cause_detail` text column (stripping spaces, unifying
+  capitalization) so it can be used for later visualizations.
 
-From the cleaned outage data, I then created **state-level summary features**:
+After these steps, the `outage` dataframe keeps the main variables we need:
+time and location of the outage, climate information, cause, duration, and
+basic economic and demographic context, plus state-level outage summaries.
 
-- For each state and year, I computed the **total number of major outages**.
-- For each state and year, I also calculated the **average duration** of outages.
+##### Feature engineering
 
-These summaries were merged back so that each row in the final outage dataframe represents a state–year pair with both event-level information and these summary statistics.
+Next, I created summary features that aggregate outages at the state–year level:
 
-*(On the website, the head of this cleaned and engineered `outage` dataframe is shown.)*
+- `yearly_outage_count_bystate`: total number of major outages in a given
+  state and year.
+- `yearly_avg_duration_bystate`: average duration of major outages in that
+  state and year.
+
+These features were joined back onto the `outage` dataframe so that each row
+includes both the original event-level information and these state-year
+summaries.
+
+*(On the website I show the head of this cleaned and engineered `outage`
+dataframe.)*
 
 ---
 
-### “capacity” and “generation” dataframes
+#### “capacity” and “generation” dataframes
 
-The raw **capacity** (EIA-860) and **generation** (EIA-923) datasets also needed cleaning before they could be combined with the outage data.
+The raw capacity (`EIA-860`) and generation (`EIA-923`) datasets also needed
+cleaning before they could be merged with the outage data.
 
 Key steps:
 
-- I restricted the data to **years 2000–2016**, where both capacity and generation data are relatively complete.
-- Capacity and generation values were stored as strings with commas, so I removed commas and converted them to numeric types.
-- Fuel source labels were standardized so that the same fuel has the same name across both datasets.
-- For the capacity data, I kept rows where the fuel source is recorded at the individual-fuel level and used “All Sources” only when representing total installed capacity.
-- For the generation data, I removed rows labeled “Total” so that I could focus on generation by specific fuels.
-- Rows with clearly invalid or missing numeric values were dropped.
+- Restricted the data to years **2000–2016**, where both datasets are mostly
+  complete.
+- Removed commas from capacity and generation columns and converted them to
+  numeric types so that they can be used in calculations.
+- Standardized fuel source names so that the same fuel has the same label in
+  both datasets.
+- For capacity, kept rows where the fuel source is recorded at the desired level
+  (for example, treating “All Sources” as total installed capacity when needed).
+- For generation, dropped rows labeled “Total” so that calculations are based on
+  individual fuel types.
+- Dropped rows with clearly invalid or missing numeric values to avoid
+  distortions in later steps.
 
-#### Fuel diversity features (entropy)
+##### Fuel-diversity features (entropy)
 
-To capture how **diverse** a state’s fuel mix is, I created two new features:
+To measure how diverse each state’s fuel mix is, I engineered two new features:
 
-- `capacity_fuel_diversity_index` – diversity of **installed capacity** by fuel.
+- `capacity_fuel_diversity_index` – diversity of **installed capacity** by fuel.  
 - `generation_fuel_diversity_index` – diversity of **actual generation** by fuel.
 
-Both indices are based on **Shannon entropy**. For a set of fuel shares \(p(x)\), the entropy is
+Both are based on **Shannon entropy**. For a vector of fuel shares \(p(x)\),
 
 \[
 H = -\sum p(x)\log p(x).
 \]
 
-- A **higher** entropy value means the state relies on a wider mix of fuels (more diverse).
-- A **lower** entropy value means most capacity or generation comes from only a few fuels (less diverse).
+Interpretation:
 
-The head of the cleaned capacity and generation summary dataframes (with these entropy columns) is shown on the website as `capacity_entropy` and `generation_entropy`.
+- **Higher entropy** → electricity capacity or production is spread across many
+  different fuels (more diverse mix).
+- **Lower entropy** → most capacity or production comes from only a few fuels
+  (less diverse mix).
+
+After computing these indices for each state–year pair, I kept a compact
+summary dataframe for capacity (`capacity_entropy`) and for generation
+(`generation_entropy`). The heads of these tables are shown on the website.
 
 ---
 
 ### Merging engineered features into outages
 
-Finally, I merged the engineered capacity and generation features into the outage summaries:
+Finally, I merged the fuel-diversity features into the outage summaries.
 
-- The merge keys are **state** and **year**.
-- Each state–year row in the final dataframe contains:
-  - outage information (average duration, total number of outages),
-  - climate and cause variables,
-  - economic and demographic variables, and
-  - the two fuel diversity indices from capacity and generation.
+- Merge keys: **`state`** and **`year`**.
+- Each row in the final dataframe represents a **state–year** and includes:
+  - climate variables and outage causes,
+  - economic and demographic variables,
+  - `yearly_outage_count_bystate` and `yearly_avg_duration_bystate`,
+  - `capacity_fuel_diversity_index` and `generation_fuel_diversity_index`.
 
-This merged dataframe is the main dataset used for the exploratory data analysis and modeling sections that follow. The website shows the head of this final merged dataframe to illustrate its structure.
-
-
+This merged dataframe is what I use for the exploratory data analysis and
+modeling sections that follow. On the website, I display the head of this
+final `outage` dataframe to illustrate its structure.
