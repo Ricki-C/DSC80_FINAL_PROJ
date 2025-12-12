@@ -9,66 +9,77 @@ title: "DSC 80 Final Project: Power Outages and Fuel Diversity"
 
 ### Motivation
 
-Power outages create serious risks for households, businesses, and critical services. Losing electricity for many hours can disrupt heating and cooling, medical equipment, transportation, and communication. Some outages are unavoidable because of extreme weather, but the way a power system is built can make outages either much worse or much easier to recover from.
+Major power outages can disrupt daily life, damage local economies, and threaten critical services such as hospitals, transportation, and communication systems. Although some events are unavoidable due to extreme or unexpected weather, the way the power grid is designed and managed can make these outages shorter and less severe—or longer and more damaging. The resilience of the electric grid—its ability to absorb shocks and return to normal operation quickly—is therefore essential for maintaining reliable access to electricity in the face of natural hazards, equipment failures, and other disruptions.
 
-Most discussions of power outages focus on demand, prices, or short-term weather events. In this project, I focus on the **supply side** of the grid instead: the mix of fuel sources and generation capacity that each U.S. state relies on. A more diverse energy portfolio might make the grid more flexible when one source fails, but it is not obvious how large this effect is. Understanding whether fuel diversity is actually associated with shorter outages can help inform long-term infrastructure planning and energy policy.
+Most studies of power outages emphasize demand-side factors, electricity prices, or short-term regional weather patterns. In contrast, this project focuses on the **supply side** of the grid: how much generation capacity a state has, which fuels it uses, and how diverse its portfolio of generators is. A more diverse and flexible generation mix may help the grid continue operating even when one source is temporarily unavailable. Understanding whether such diversity is actually related to outage outcomes can provide useful insight for infrastructure investment and energy-policy decisions.
 
-### Project Question
+### Project Objective
 
-In this project, I study the following question:
+This project explores the relationship between electricity generation characteristics and major outage events in the United States. In particular, we connect:
 
-> **How is a state’s electricity generation mix—especially the diversity of fuel sources—related to the average duration of major power outages?**
+- measures of generation capacity, fuel-type diversity, and actual electricity production (from EIA-860 and EIA-923), with  
+- measures of outage frequency, duration, and impact (from a DOE power outage dataset).
 
-I explore this question by combining detailed outage records with state-level information on generation capacity and fuel types, and by building models that try to predict outage duration using these features.
+More concretely, in this project we:
 
-### Data
+- Conduct an initial exploratory analysis of major outage events.
+- Investigate the question: **“Do states with more diverse energy portfolios tend to experience fewer or shorter outages?”**
+- Build a predictive model that uses grid and regional features to estimate the duration of an outage.
 
-My project uses one main outage dataset and two additional datasets describing electricity generation in the United States.
+Understanding how and why large outages occur is especially important in a climate-stressed and electricity-dependent world. By combining detailed U.S. outage records with state-level economic, environmental, and generation information, this project offers a way to examine how resilience varies across states. Our goal is to develop a simple, interpretable model of average outage duration using features that are known ahead of time, providing a small but concrete step toward using data to better understand and improve grid reliability.
 
-#### Major Power Outage Events Dataset
+## Data
 
-The primary dataset comes from a ScienceDirect article that compiles **major power outage events in the continental U.S.**  
-The raw outage dataset contains **1534 rows and 56 columns**. Each row corresponds to a major outage event in a particular state and month.
+### Major Power Outage Events Dataset
 
-For this project, the most important columns are:
+The primary dataset used in this project comes from a ScienceDirect article titled *Data on major power outage events in the continental U.S.*  
 
-| Column name(s)                      | Description                                                                                           |
-|------------------------------------|-------------------------------------------------------------------------------------------------------|
-| `year`, `month`, `state`           | Calendar year, month, and U.S. state in which the outage occurred.                                   |
-| `climate_region`                   | Broad U.S. climate region of the state, as defined by the National Centers for Environmental Information. |
-| `climate_cat`, `anomaly_level`     | Indicators of El Niño/La Niña conditions and temperature anomalies during the event period.          |
-| `cause_cat`, `cause_detail`        | Categorical cause of the outage (e.g., weather, equipment failure) and a more detailed text description. |
-| `duration`                         | Length of the outage in minutes. This is the main response variable in my analysis.                  |
-| `pc_realgsp_state`, `pi_util_of_usa` | State-level economic indicators (per-capita gross state product and the share of utility-sector income in the U.S.). |
-| `population`                       | Total population of the state in the given year.                                                     |
-| `pop_pct_urban`, `pop_pct_uc`      | Percent of the state’s population living in urban areas and in urban clusters.                       |
-| `popden_urban`, `popden_uc`, `popden_rural` | Population densities (persons per square mile) in urban areas, urban clusters, and rural areas.      |
-| `area_pct_urban`, `area_pct_uc`    | Percent of the state’s land area classified as urban areas and as urban clusters.                    |
+The raw dataset contains **1534 rows and 56 columns**, where each row corresponds to a major outage event in a given state and month.
 
-These variables allow me to study how outage duration relates to climate conditions, causes, and basic demographic and economic characteristics of each state.
+The most relevant columns for our analysis include:
 
-#### EIA-860 Annual Electric Generator Report
+| Column Name(s)                     | Description                                                                                                  |
+|-----------------------------------|--------------------------------------------------------------------------------------------------------------|
+| `year`, `month`, `state`          | Calendar year, month, and U.S. state in which the outage occurred.                                          |
+| `climate_region`                  | U.S. climate region of the state, as defined by the National Centers for Environmental Information.          |
+| `climate_cat`, `anomaly_level`    | Indicators of El Niño/La Niña climate episodes and temperature anomalies during the period of the event.    |
+| `cause_cat`, `cause_detail`       | Categorical and textual descriptions of the cause of the outage (e.g., severe weather, equipment failure).  |
+| `duration`                        | Duration of the outage in minutes; this is the main outcome variable in our study.                          |
+| `pc_realgsp_state`, `pi_util_of_usa` | Economic indicators such as per-capita gross state product and the share of U.S. utility-sector income.  |
+| `population`                      | Total population of the state in the given year.                                                             |
+| `pop_pct_urban`, `pop_pct_uc`     | Percentage of the state’s population living in urban areas and in urban clusters.                           |
+| `popden_urban`, `popden_uc`, `popden_rural` | Population density (persons per square mile) in urban areas, urban clusters, and rural areas.   |
+| `area_pct_urban`, `area_pct_uc`   | Percentage of the state’s land area classified as urban areas and urban clusters.                           |
 
-To capture the **supply-side structure of the grid**, I use the EIA-860 generator-level survey, which describes existing electric generators in the U.S. The cleaned dataset used in this project has **62282 rows and 5 columns**, with the key variables:
+These features allow us to connect outage characteristics with climate conditions and basic demographic and economic context.
 
-| Column name        | Description                                                                                |
-|--------------------|--------------------------------------------------------------------------------------------|
-| `producer_type`    | Type of electricity producer (for example, utility, industrial, or commercial).           |
-| `fuel_source`      | Primary fuel used by the generator (such as coal, natural gas, nuclear, or solar).        |
-| `generators`       | Count of generator units at the plant (may include missing values).                        |
-| `facilities`       | Number or identifier of facilities associated with generation (may include missing values).|
-| `nameplate_capacity`, `summer_capacity` | Rated maximum output of the generator under standard and summer peak conditions, in megawatts. |
+### EIA-860 Annual Electric Generator Report
 
-These columns are used to build state-level measures of generation capacity and fuel diversity.
+To describe the **structure of electricity generation** in each state, we use the EIA-860 survey, which provides generator-level information about existing and planned electric generating units in the U.S.
 
-#### EIA-923 Power Plant Operations Report
+The cleaned dataset we work with contains **62282 rows and 5 columns**. Key columns include:
 
-Finally, I use the EIA-923 survey, which records **actual electricity production**. The processed dataset contains **54002 rows and 8 columns**. For this project, the main variables are:
+| Column Name        | Description                                                                                      |
+|--------------------|--------------------------------------------------------------------------------------------------|
+| `producer_type`    | Type of electricity producer (e.g., utility, industrial, commercial).                           |
+| `fuel_source`      | Primary fuel type used by the generator (e.g., coal, natural gas, nuclear, solar).              |
+| `generators`       | Number of generator units at a plant (may contain missing values).                              |
+| `facilities`       | Identifier or count of facilities associated with generation (may contain missing values).      |
+| `nameplate_capacity`, `summer_capacity` | Rated maximum output of the generator under standard and summer peak conditions, in megawatts (MW). |
 
-| Column name     | Description                                                                 |
-|-----------------|-----------------------------------------------------------------------------|
-| `producer_type` | Same producer type categories as in the EIA-860 dataset.                    |
-| `fuel_source`   | Same fuel type categories as in the EIA-860 dataset.                        |
-| `generation_mwh`| Actual electricity generated in megawatt-hours for the plant or generator. |
+From these variables, we construct state-level summaries of capacity and fuel-mix diversity.
 
-By merging these three datasets at the state and year level, I obtain features that describe both **how outages occur** and **how each state generates electricity**. This combined view supports my analysis of how fuel diversity and generation capacity relate to the duration of major power outages.
+### EIA-923 Power Plant Operations Report
+
+We also use the EIA-923 dataset, which records **actual electricity production** at power plants.
+
+The processed version used here contains **54002 rows and 8 columns**. The core variables are:
+
+| Column Name     | Description                                                                        |
+|-----------------|------------------------------------------------------------------------------------|
+| `producer_type` | Same producer type categories as in the EIA-860 dataset.                          |
+| `fuel_source`   | Same fuel type categories as in the EIA-860 dataset.                              |
+| `generation_mwh`| Actual electricity generated, measured in megawatt-hours.                         |
+
+By aggregating EIA-860 and EIA-923 data to the state–year level and merging them with the outage dataset, we obtain a combined dataset that describes both **how outages occur** and **how each state generates electricity**. This integrated view is the basis for the analyses and models presented in the rest of the project.
+
