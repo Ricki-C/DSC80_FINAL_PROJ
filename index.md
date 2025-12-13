@@ -187,6 +187,10 @@ Our features of interest include
 `climate_region`, `cause_cat`, `population`, `capacity_fuel_diversity_index`, and `generation_fuel_diversity_index`.  
 These features are either fixed (e.g., geographic or categorical labels) or collected prior to the prediction year through public data sources, ensuring they would be available at the time of prediction. This respects the temporal constraint of not using information from after the event we aim to predict.
 
+# Baseline Model
+
+First, we attempted Linear Regression using the covariates identified during the prediction problem formulation to predict the average outage duration per year per state. However, the results were not promising, as the RMSE was quite high. This is likely due to the nature of our test set. While the model learns from the training data with access to all covariates, it is important that its performance on the test set does not degrade significantly compared to training. If the model’s accuracy on the test set remains close to that on the training set, we consider it a good model because it demonstrates robustness to new, potentially independent data outside the training distribution.
+
 # Fairness Analysis
 
 To assess model fairness, we choose group the cause category by severe weather or no severe weather. Since our model focuses on average duration based on the predictive power of population, geographical, and energy generation/storage factors, we want to know if the model is actually performing well on severe weather or not. This is an interesting way to answer the question of “How good is the model in identifying natural causes and appropriate assign weights to those causes so that it is predicting average duration fairly?”. We will see whether or not our model is robust under why the outage happened.
