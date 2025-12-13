@@ -82,3 +82,114 @@ The processed version used here contains **54002 rows and 8 columns**. The core 
 | `generation_mwh`| Actual electricity generated, measured in megawatt-hours.                         |
 
 By aggregating EIA-860 and EIA-923 data to the state–year level and merging them with the outage dataset, we obtain a combined dataset that describes both **how outages occur** and **how each state generates electricity**. This integrated view is the basis for the analyses and models presented in the rest of the project.
+
+## Data cleaning
+
+We began by renaming columns for improved readability and dropped many columns related to climate, sales, and outage-specific details that were less relevant to assessing infrastructure resilience from an economic and investment perspective. For example, columns related to outage duration drivers, demand-side metrics like total price or customers, and some state economy indicators were removed. The resulting columns retained include key variables such as year, state, climate region, outage duration, economic indicators, population metrics, and state-level outage summaries. The remaining columns are listed here.
+
+Index(['year', 'state', 'climate_region', 'anomaly_level', 'climate_cat',
+       'cause_cat', 'cause_detail', 'duration', 'pc_realgsp_state',
+       'pi_util_of_usa', 'population', 'pop_pct_urban', 'pop_pct_uc',
+       'popden_urban', 'popden_uc', 'popden_rural', 'area_pct_urban',
+       'area_pct_uc', 'yearly_outage_count_bystate',
+       'yearly_avg_duration_bystate'],
+      dtype='object')
+
+Small changes we made include:
+
+- Replacing `state` column with `posta_code`, to be consistent with external dataframe.
+- Dropping columns with `NaN` state and years to maintain data integrity.
+- Converted numerical columns to numerical, like `duration`, and cleaned the text of `cause_detail` for EDA later.
+
+# Feature Engineering
+
+We created new columns for **state specific total outage counts**, and **annual state-wise average outage duration of outage**.
+
+
+# Assessment of Missingness
+
+Upon inspection, we found that from our cleaned dataframe, the columns with the most amount of missing data are  
+`cause_detail`, `duration`, `popden_rural`, `popden_uc`, and `anomaly_level`.
+
+## NMAR Assessments
+
+### Addressing Missingness of Cause Detail
+
+The missingness of the `cause_detailed` col is most likely NMAR since the details might give sensitive information about an individual. Usually when an outage occurs, we can expect to see a recording or failsafe that indicates what was broken. That said, if the outage occurs in under-resourced areas then there is a much higher chance that it is not recorded at all due to lack of infrastructure.
+
+### Addressing Missingness of Duration
+
+On the other hand, we have reason believe that `duration` not NMAR since even though we can make a case that if a duration is too low or too high it might not be recorded. Why we believe that reasoning is flawed is because the `duration` column has 78 entries that only have 0 duration. Since, duration is non negative and the max duration is rather high, we can say that this missingness cannot be determined by the value within the column itself. If anything, if an outage lasts very long then there is more reason that it should be recorded for record keeping. So it is not NMAR.
+
+### Addressing Missingness of Climate Category and Region
+
+It doesn’t make much sense to label this as NMAR because all geographical regions in the country are labeled with their respective category and region, so it is unlikely that an outtage would happen in an area that cannot be classified as one of them. Thus, it cannot be that the missingness is dependent on the value of the entry within the coclumn itself.
+
+### Addressing Missingness of popden_uc, popden_rural
+
+There is no reason to believe that these columns are NMAR since the population level, urban or not, is highly dependent on the state and its population, both of which are features in our data.
+
+# MAR Test
+## Set up
+
+Cause detail is the column with the most missingness in our cleaned dataset. We find it interesting to examine whether the missingness of this column depends on other observable variables.
+
+We performed **permutation testing** to compare distributions of other variables conditional on the presence or absence of `cause_detail`.
+
+- **For numeric variables:** We used mean differences as the test statistic.
+- **For categorical variables:** We used Total Variation Distance (TVD).
+
+
+
+
+# Hypothesis Testing
+
+## Set up
+
+We investigate whether states with more diverse energy sources tend to experience less severe power outages.
+
+> **Is there evidence that higher fuel diversity is associated with shorter average power outage durations?**
+
+This analysis uses previously engineered features:
+
+- **Fuel Diversity Score**  
+  - *Capacity Entropy* — reflects infrastructure potential  
+  - *Generation Entropy* — reflects actual energy usage patterns  
+- **Average Outage Duration by State** — proxy for grid robustness and outage severity  
+
+---
+
+# Hypothesis
+
+We divide states into **high** and **low** diversity groups using the **median** fuel diversity index.
+
+### **Null Hypothesis (H₀):**  
+No difference in average outage duration between high- and low-diversity states.
+
+### **Alternative Hypothesis (H₁):**  
+High-diversity states have **shorter** average outage durations.
+
+---
+
+# Methodology
+
+### **Test Statistic**
+We use **difference in group means** because the hypothesis is directional and compares two groups.
+
+### **Significance Level**
+We choose **α = 0.05**, a standard choice for hypothesis testing.
+
+# Framing a Prediction Problem
+
+To get a closer look into the relationship between our features and outage duration, we have decided to make our task be about predicting the average outage duration per state per year through regression. By predicting this response variable, we aim to provide a model that can derive average outage duration data catered to each state more accurately. We will propose a baseline model, starting with linear regression, as it is one of the simpler models, with percent RMSE, the percentage of RMSE over the mean of the average duration per state per year feature.
+
+Our features of interest include  
+`climate_region`, `cause_cat`, `population`, `capacity_fuel_diversity_index`, and `generation_fuel_diversity_index`.  
+These features are either fixed (e.g., geographic or categorical labels) or collected prior to the prediction year through public data sources, ensuring they would be available at the time of prediction. This respects the temporal constraint of not using information from after the event we aim to predict.
+
+# Fairness Analysis
+
+To assess model fairness, we choose group the cause category by severe weather or no severe weather. Since our model focuses on average duration based on the predictive power of population, geographical, and energy generation/storage factors, we want to know if the model is actually performing well on severe weather or not. This is an interesting way to answer the question of “How good is the model in identifying natural causes and appropriate assign weights to those causes so that it is predicting average duration fairly?”. We will see whether or not our model is robust under why the outage happened.
+
+It is fitting to test whether or not the model performs well on different groups of climate categories. Specifically, we want to see if the average outage duration is well modeled on severe weather and no severe weather in hopes to bring up awareness of risks that come with outages.
+
